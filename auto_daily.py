@@ -38,6 +38,7 @@ def scrape_dlsite_ranking():
                     price_elem = parent.select_one('.work_price')
                     if price_elem:
                         price = price_elem.get_text(strip=True)
+                
                 # サムネイル画像を取得
                 thumbnail = ""
                 if parent:
@@ -46,7 +47,6 @@ def scrape_dlsite_ranking():
                         img_elem = grand_parent.find('img', class_='lazy')
                         if img_elem and 'src' in img_elem.attrs:
                             thumbnail = img_elem['src']
-                            # // で始まる場合は https: を追加
                             if thumbnail.startswith('//'):
                                 thumbnail = "https:" + thumbnail
                                 
@@ -115,7 +115,7 @@ def generate_article_with_ai(ranking_data):
     <style>
         body {{
             font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-            max-width: 900px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background: #f5f5f5;
@@ -128,6 +128,32 @@ def generate_article_with_ai(ranking_data):
             border-radius: 10px;
             text-align: center;
             margin-bottom: 30px;
+        }}
+        .container {{
+            display: flex;
+            gap: 30px;
+        }}
+        .main-content {{
+            flex: 2;
+        }}
+        .sidebar {{
+            flex: 1;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }}
+        .sidebar-widget {{
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        .sidebar-widget h3 {{
+            margin-top: 0;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
         }}
         .article {{
             background: white;
@@ -190,6 +216,14 @@ def generate_article_with_ai(ranking_data):
             color: #666;
             margin-top: 50px;
         }}
+        @media (max-width: 768px) {{
+            .container {{
+                flex-direction: column;
+            }}
+            .sidebar {{
+                position: static;
+            }}
+        }}
     </style>
 </head>
 <body>
@@ -198,11 +232,13 @@ def generate_article_with_ai(ranking_data):
         <p>{datetime.now().strftime('%Y年%m月%d日')} 更新</p>
     </div>
     
-    <div class="article">
-        {article.replace(chr(10), '<br>')}
-    </div>
-    
-    <h2 style="text-align: center; margin: 40px 0 20px;">📊 詳細ランキングTOP30</h2>
+    <div class="container">
+        <div class="main-content">
+            <div class="article">
+                {article.replace(chr(10), '<br>')}
+            </div>
+            
+            <h2 style="text-align: center; margin: 40px 0 20px;">📊 詳細ランキングTOP30</h2>
 """
         
         # 各作品の詳細
@@ -212,18 +248,46 @@ def generate_article_with_ai(ranking_data):
                 thumbnail_html = f'<img src="{item["thumbnail"]}" alt="{item["title"]}" class="thumbnail">'
             
             html_content += f"""
-    <div class="ranking-item">
-        <div class="rank">🏆 {item['rank']}位</div>
-        {thumbnail_html}
-        <div class="title">{item['title']}</div>
-        <div class="price">💰 {item['price']}</div>
-        <a href="{item['url']}" class="affiliate-link" target="_blank">この作品をチェック →</a>
-    </div>
+            <div class="ranking-item">
+                <div class="rank">🏆 {item['rank']}位</div>
+                {thumbnail_html}
+                <div class="title">{item['title']}</div>
+                <div class="price">💰 {item['price']}</div>
+                <a href="{item['url']}" class="affiliate-link" target="_blank">この作品をチェック →</a>
+            </div>
 """
         
-        html_content += f"""
+        html_content += """
+        </div>
+        
+        <aside class="sidebar">
+            <div class="sidebar-widget">
+                <h3>📚 おすすめ関連商品</h3>
+               <p style="margin-bottom: 15px;">音声作品と一緒に楽しめる関連商品</p>
+                <a href="https://amzn.to/4ady7O9" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px; margin-bottom: 10px;">📚 声優写真集を見る</a>
+                <a href="https://www.amazon.co.jp/s?k=ASMR+マイク&tag=minarad715-22" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px; margin-bottom: 10px;">🎤 ASMRマイクを探す</a>
+                <a href="https://www.amazon.co.jp/s?k=ヘッドホン+ASMR&tag=minarad715-22" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px;">🎧 高音質イヤホン</a>
+            </div>
+            
+            <div class="sidebar-widget">
+                <h3>🔥 人気カテゴリ</h3>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin: 10px 0;">🎤 ボイスドラマ</li>
+                    <li style="margin: 10px 0;">🎧 ASMR</li>
+                    <li style="margin: 10px 0;">💕 乙女向け</li>
+                    <li style="margin: 10px 0;">🎮 シチュエーションボイス</li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-widget">
+                <h3>ℹ️ このサイトについて</h3>
+                <p>DLsite音声作品の最新ランキングを毎日自動更新でお届けしています。</p>
+            </div>
+        </aside>
+    </div>
+    
     <div class="footer">
-        <p>毎日更新 | 最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p>毎日更新 | 最終更新: """ + f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" + """</p>
     </div>
 </body>
 </html>
@@ -260,7 +324,7 @@ def main():
     
     if article_file:
         print("\n" + "=" * 60)
-        print("✅ すべての処理が完了しました！")
+        print("✅ すべての処理が完了しました!")
         print(f"📄 生成されたファイル: {article_file}")
         print("=" * 60)
 
