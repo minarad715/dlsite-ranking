@@ -31,6 +31,11 @@ def scrape_dlsite_ranking():
             try:
                 title = work.get_text(strip=True)
                 work_url = work.get('href', '')
+                # アフィリエイトID追加
+                if work_url and '?' not in work_url:
+                    work_url += '/?affiliate_id=realolchan'
+                elif work_url and '?' in work_url:
+                    work_url += '&affiliate_id=realolchan'
                 
                 parent = work.find_parent('dl', class_='work_2col')
                 price = "価格情報なし"
