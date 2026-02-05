@@ -1,0 +1,6 @@
+*.json
+page.html
+debug.py
+check_image.py
+__pycache__/
+*.pyc
