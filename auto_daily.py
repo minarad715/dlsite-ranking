@@ -9,7 +9,7 @@ import time
 def scrape_dlsite_ranking():
     """DLsiteのランキングをスクレイピング"""
     
-    url = "https://www.dlsite.com/maniax/ranking/=/term/daily/type/voice"
+    url = "https://www.dlsite.com/maniax/ranking/day?category=voice"
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -23,38 +23,48 @@ def scrape_dlsite_ranking():
         soup = BeautifulSoup(response.text, 'html.parser')
         
         ranking_data = []
+        
+               # work_nameから取得
         work_names = soup.select('dt.work_name a')
         
         print(f"   見つかった作品数: {len(work_names)}件")
         
         for idx, work in enumerate(work_names[:30], 1):
             try:
+                # タイトル
                 title = work.get_text(strip=True)
                 work_url = work.get('href', '')
+                
                 # アフィリエイトID追加
                 if work_url and '?' not in work_url:
                     work_url += '/?affiliate_id=realolchan'
                 elif work_url and '?' in work_url:
                     work_url += '&affiliate_id=realolchan'
                 
-                parent = work.find_parent('dl', class_='work_2col')
+                # 親要素から価格を取得
+                parent = work.find_parent('dl')
                 price = "価格情報なし"
                 if parent:
                     price_elem = parent.select_one('.work_price')
                     if price_elem:
                         price = price_elem.get_text(strip=True)
                 
-                # サムネイル画像を取得
+                # サムネイル画像
                 thumbnail = ""
-                if parent:
-                    grand_parent = parent.find_parent()
-                    if grand_parent:
-                        img_elem = grand_parent.find('img', class_='lazy')
-                        if img_elem and 'src' in img_elem.attrs:
-                            thumbnail = img_elem['src']
-                            if thumbnail.startswith('//'):
-                                thumbnail = "https:" + thumbnail
-                                
+                # trタグまでさかのぼる
+                tr_parent = work
+                for _ in range(10):
+                    tr_parent = tr_parent.find_parent()
+                    if tr_parent and tr_parent.name == 'tr':
+                        break
+                
+                if tr_parent:
+                    img_elem = tr_parent.find('img', class_='lazy')
+                    if img_elem and 'src' in img_elem.attrs:
+                        thumbnail = img_elem['src']
+                        if thumbnail.startswith('//'):
+                            thumbnail = "https:" + thumbnail
+                
                 ranking_data.append({
                     'rank': idx,
                     'title': title,
@@ -84,6 +94,11 @@ def generate_article_with_ai(ranking_data):
         f"{item['rank']}位: {item['title']} - {item['price']}"
         for item in top10
     ])
+# デバッグ：ランキングデータを表示
+    print("\n=== AIに渡すランキングデータ ===")
+    print(ranking_text)
+    print("=" * 50)
+
     
     prompt = f"""以下のDLsite音声作品ランキングTOP10をもとに、ブログ記事を書いてください。
 
