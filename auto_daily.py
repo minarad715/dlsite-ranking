@@ -24,7 +24,7 @@ def scrape_dlsite_ranking():
         
         ranking_data = []
         
-               # work_nameから取得
+        # work_nameから取得
         work_names = soup.select('dt.work_name a')
         
         print(f"   見つかった作品数: {len(work_names)}件")
@@ -84,6 +84,126 @@ def scrape_dlsite_ranking():
         print(f"   ❌ エラー: {e}")
         return []
 
+def get_circle_latest_works():
+    """サークルの最新作を取得（男性向け・発売済みのみ、必ず2作品）"""
+    
+    # サークルプロフィールページURL
+    circle_urls = [
+        'https://www.dlsite.com/maniax/circle/profile/=/maker_id/RG01059653.html',
+        'https://www.dlsite.com/maniax/circle/profile/=/maker_id/RG01020625.html'
+    ]
+    
+    latest_works = []
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    print("\n🎨 サークル作品を取得中...")
+    
+    for url in circle_urls:
+        # 既に2作品取得したら終了
+        if len(latest_works) >= 2:
+            break
+            
+        try:
+            # URLからcircle_idを抽出
+            circle_id = url.split('maker_id/')[1].split('.html')[0]
+            
+            print(f"   サークル {circle_id} のページを取得中...")
+            
+            # サークルページにアクセス
+            response = requests.get(url, headers=headers)
+            response.encoding = 'utf-8'
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 正しいセレクタで作品リンクを取得
+            work_links = soup.select('a[href*="/work/"]')
+            
+            print(f"      {len(work_links)}件の作品リンクを発見")
+            
+            if len(work_links) == 0:
+                print(f"      ⚠️ 作品が見つかりませんでした")
+                continue
+            
+            # 最初の5件をチェック
+            for work_link in work_links[:5]:
+                work_url = work_link.get('href', '')
+                
+                if not work_url:
+                    continue
+                
+                # 女性向け作品は除外
+                if '/girls/' in work_url:
+                    print(f"      スキップ: 女性向け作品")
+                    continue
+                
+                # 予約作品を除外
+                if '/announce/' in work_url:
+                    title_text = work_link.get_text(strip=True)
+                    print(f"      スキップ: 予約作品 - {title_text[:40]}")
+                    continue
+                
+                # タイトルを取得
+                title = work_link.get_text(strip=True)
+                
+                # タイトルが空の場合は、近くのテキストを探す
+                if not title or len(title) < 3:
+                    parent = work_link.find_parent()
+                    if parent:
+                        title_elem = parent.find('a', href=work_url)
+                        if title_elem:
+                            title = title_elem.get_text(strip=True)
+                
+                # それでもタイトルが取れない場合はスキップ
+                if not title or len(title) < 3:
+                    continue
+                
+                # 発売済み作品を発見
+                print(f"      ✅ 発売済み作品を発見: {title[:40]}")
+                
+                # 完全なURLにする
+                if not work_url.startswith('http'):
+                    work_url = 'https://www.dlsite.com' + work_url
+                
+                # アフィリエイトID追加
+                if '?' not in work_url:
+                    work_url += '/?affiliate_id=realolchan'
+                else:
+                    work_url += '&affiliate_id=realolchan'
+                
+                # サムネイル取得
+                thumbnail = ""
+                parent = work_link.find_parent()
+                for _ in range(5):
+                    if parent:
+                        img_elem = parent.find('img')
+                        if img_elem:
+                            img_src = img_elem.get('src') or img_elem.get('data-src')
+                            if img_src:
+                                thumbnail = img_src
+                                if thumbnail.startswith('//'):
+                                    thumbnail = "https:" + thumbnail
+                                break
+                        parent = parent.find_parent()
+                
+                latest_works.append({
+                    'title': title,
+                    'url': work_url,
+                    'thumbnail': thumbnail,
+                    'circle_id': circle_id
+                })
+                break  # このサークルの1作品だけ
+                
+        except Exception as e:
+            print(f"   ⚠️ サークル取得エラー: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    print(f"   ✅ {len(latest_works)}作品取得完了")
+    return latest_works
+
 def generate_article_with_ai(ranking_data):
     """AIを使ってランキング記事を生成"""
     
@@ -94,11 +214,10 @@ def generate_article_with_ai(ranking_data):
         f"{item['rank']}位: {item['title']} - {item['price']}"
         for item in top10
     ])
-# デバッグ：ランキングデータを表示
+    
     print("\n=== AIに渡すランキングデータ ===")
     print(ranking_text)
     print("=" * 50)
-
     
     prompt = f"""以下のDLsite音声作品ランキングTOP10をもとに、ブログ記事を書いてください。
 
@@ -123,6 +242,28 @@ def generate_article_with_ai(ranking_data):
         )
         
         article = response['message']['content']
+        
+        # サークル作品を取得
+        circle_works = get_circle_latest_works()
+        
+        # サークル作品HTMLを生成
+        circle_works_html = ""
+        if circle_works:
+            circle_works_html = '<div class="sidebar-widget"><h3>🌟 おすすめ新作作品</h3>'
+            for work in circle_works:
+                thumbnail_html = ""
+                if work.get('thumbnail'):
+                    thumbnail_html = f'<img src="{work["thumbnail"]}" alt="{work["title"]}" style="width: 100%; border-radius: 5px; margin-bottom: 10px;">'
+                
+                circle_works_html += f'''
+                <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+                    {thumbnail_html}
+                    <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px;">{work['title']}</div>
+                    <a href="{work['url']}" target="_blank" style="display: block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px; text-align: center; text-decoration: none; border-radius: 5px;">この作品をチェック</a>
+                </div>
+                '''
+            
+            circle_works_html += '</div>'
         
         # HTMLファイルとして保存
         html_content = f"""<!DOCTYPE html>
@@ -158,9 +299,24 @@ def generate_article_with_ai(ranking_data):
         }}
         .sidebar {{
             flex: 1;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
             position: sticky;
             top: 20px;
-            height: fit-content;
+        }}
+        .sidebar::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .sidebar::-webkit-scrollbar-track {{
+            background: #f1f1f1;
+            border-radius: 10px;
+        }}
+        .sidebar::-webkit-scrollbar-thumb {{
+            background: #888;
+            border-radius: 10px;
+        }}
+        .sidebar::-webkit-scrollbar-thumb:hover {{
+            background: #555;
         }}
         .sidebar-widget {{
             background: white;
@@ -241,7 +397,8 @@ def generate_article_with_ai(ranking_data):
                 flex-direction: column;
             }}
             .sidebar {{
-                position: static;
+                max-height: none;
+                position: relative;
             }}
         }}
     </style>
@@ -277,13 +434,15 @@ def generate_article_with_ai(ranking_data):
             </div>
 """
         
-        html_content += """
+        html_content += f"""
         </div>
         
         <aside class="sidebar">
+            {circle_works_html}
+            
             <div class="sidebar-widget">
                 <h3>📚 おすすめ関連商品</h3>
-               <p style="margin-bottom: 15px;">音声作品と一緒に楽しめる関連商品</p>
+                <p style="margin-bottom: 15px;">音声作品と一緒に楽しめる関連商品</p>
                 <a href="https://amzn.to/4ady7O9" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px; margin-bottom: 10px;">📚 声優写真集を見る</a>
                 <a href="https://www.amazon.co.jp/s?k=ASMR+マイク&tag=minarad715-22" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px; margin-bottom: 10px;">🎤 ASMRマイクを探す</a>
                 <a href="https://www.amazon.co.jp/s?k=ヘッドホン+ASMR&tag=minarad715-22" target="_blank" style="display: block; background: #FF9900; color: white; padding: 10px; text-align: center; text-decoration: none; border-radius: 5px;">🎧 高音質イヤホン</a>
@@ -307,7 +466,7 @@ def generate_article_with_ai(ranking_data):
     </div>
     
     <div class="footer">
-        <p>毎日更新 | 最終更新: """ + f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" + """</p>
+        <p>毎日更新 | 最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     </div>
 </body>
 </html>
