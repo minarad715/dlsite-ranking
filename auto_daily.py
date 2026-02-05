@@ -451,10 +451,10 @@ def generate_article_with_ai(ranking_data):
             <div class="sidebar-widget">
                 <h3>🔥 人気カテゴリ</h3>
                 <ul style="list-style: none; padding: 0;">
-                    <li style="margin: 10px 0;">🎤 ボイスドラマ</li>
-                    <li style="margin: 10px 0;">🎧 ASMR</li>
-                    <li style="margin: 10px 0;">💕 乙女向け</li>
-                    <li style="margin: 10px 0;">🎮 シチュエーションボイス</li>
+                    <li style="margin: 10px 0;">🎤 ボイス</li>
+                    <li style="margin: 10px 0;">🎧 動画</li>
+                    <li style="margin: 10px 0;">💕 CG集</li>
+                    <li style="margin: 10px 0;">🎮 ゲーム</li>
                 </ul>
             </div>
             
